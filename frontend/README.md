@@ -14,6 +14,7 @@ npm run dev
 ```text
 src/
   components/Sidebar.tsx
+  components/Overview.tsx
   features/planner/
     Planner.tsx          Dashboard and roadmap workspace
     RoadmapDialog.tsx    Create and edit roadmap form
