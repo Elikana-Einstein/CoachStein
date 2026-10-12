@@ -13,6 +13,7 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const isSignup = mode === 'signup';
   const destination = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/dashboard';
@@ -20,10 +21,16 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setNotice('');
     setSubmitting(true);
     try {
-      if (isSignup) await signUp(email, password);
-      else await signIn(email, password);
+      if (isSignup) {
+        const authenticated = await signUp(email, password);
+        if (!authenticated) {
+          setNotice('Account created. Check your email for the confirmation link, then sign in.');
+          return;
+        }
+      } else await signIn(email, password);
       navigate(destination, { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to authenticate. Please try again.');
@@ -97,6 +104,7 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
 
             {isSignup && <p className="-mt-2 flex items-center gap-2 text-[10px] text-[#78867f]"><Check size={13} className="text-[#8cc5a3]" /> Use at least 8 characters.</p>}
             {error && <p role="alert" className="rounded-lg border border-[#78443e]/60 bg-[#3a211f]/50 px-3 py-2.5 text-xs leading-5 text-[#f1aaa0]">{error}</p>}
+            {notice && <p role="status" className="rounded-lg border border-[#42634f]/60 bg-[#1e3326]/50 px-3 py-2.5 text-xs leading-5 text-[#a8dfbf]">{notice}</p>}
 
             <button type="submit" disabled={submitting} className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#9be2c5] px-4 text-sm font-semibold text-[#142019] shadow-[0_8px_24px_rgba(89,173,128,.12)] transition hover:bg-[#b0efd1] disabled:cursor-wait disabled:opacity-60">
               {submitting ? 'Connecting…' : isSignup ? 'Create your account' : 'Sign in'}

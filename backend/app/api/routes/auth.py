@@ -1,55 +1,69 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends
+from fastapi.security import HTTPAuthorizationCredentials
 
-from app.api.dependencies import get_current_user
-from app.core.config import settings
-from app.core.security import create_access_token, hash_password, verify_password
-from app.db.session import get_db
-from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from app.api.dependencies import bearer_scheme, get_current_user
+from app.core.supabase import supabase_request
+from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse, UserResponse
 
 router = APIRouter()
 
 
-def issue_token(user: User) -> TokenResponse:
+def auth_response(payload: dict) -> TokenResponse:
+    user = payload.get("user") or payload
     return TokenResponse(
-        access_token=create_access_token(user.id),
-        expires_in=settings.access_token_expire_minutes * 60,
-        user=UserResponse(id=user.id, email=user.email),
+        access_token=payload.get("access_token"),
+        refresh_token=payload.get("refresh_token"),
+        expires_in=payload.get("expires_in"),
+        user=UserResponse(id=user["id"], email=user.get("email", "")),
     )
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    email = payload.email.strip().lower()
-    user = User(email=email, password_hash=hash_password(payload.password))
-    db.add(user)
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="An account with this email already exists") from exc
-    db.refresh(user)
-    return issue_token(user)
+@router.post("/register", response_model=TokenResponse, status_code=201)
+async def register(payload: RegisterRequest):
+    result = await supabase_request(
+        "POST",
+        "/auth/v1/signup",
+        body={"email": payload.email.strip().lower(), "password": payload.password},
+    )
+    return auth_response(result)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    email = payload.email.strip().lower()
-    user = db.scalar(select(User).where(User.email == email))
-    if user is None or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is disabled")
-    return issue_token(user)
+async def login(payload: LoginRequest):
+    result = await supabase_request(
+        "POST",
+        "/auth/v1/token",
+        params={"grant_type": "password"},
+        body={"email": payload.email.strip().lower(), "password": payload.password},
+    )
+    return auth_response(result)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_session(payload: RefreshRequest):
+    result = await supabase_request(
+        "POST",
+        "/auth/v1/token",
+        params={"grant_type": "refresh_token"},
+        body={"refresh_token": payload.refresh_token},
+    )
+    return auth_response(result)
+
+
+@router.post("/logout", status_code=204)
+async def logout(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    _user: UserResponse = Depends(get_current_user),
+):
+    if credentials is None:
+        return None
+    await supabase_request(
+        "POST",
+        "/auth/v1/logout",
+        access_token=credentials.credentials,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
-def read_current_user(user: User = Depends(get_current_user)):
-    return UserResponse(id=user.id, email=user.email)
+async def read_current_user(user: UserResponse = Depends(get_current_user)):
+    return user

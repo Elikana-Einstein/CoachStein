@@ -105,6 +105,9 @@ export const useRoadmap = (): Roadmap =>
 export const useProgress = (): Progress =>
   useSyncExternalStore(progressStore.subscribe, progressStore.get);
 
+export const getRoadmapSnapshot = (): Roadmap => roadmapStore.get();
+export const getProgressSnapshot = (): Progress => progressStore.get();
+
 /* ------------------------------------------------------------------ */
 /* Actions                                                             */
 /* ------------------------------------------------------------------ */
@@ -138,6 +141,10 @@ export function toggleItem(id: string): void {
 
 export function resetProgress(): void {
   progressStore.set({});
+}
+
+export function replaceProgress(progress: Progress): void {
+  progressStore.set(progress);
 }
 
 /* ------------------------------------------------------------------ */

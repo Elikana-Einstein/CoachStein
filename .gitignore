@@ -1,0 +1,9 @@
+backend/.env
+backend/.venv/
+backend/venv/
+backend/*.db
+frontend/.env
+frontend/node_modules/
+frontend/dist/
+supabase/.temp/
+supabase/.branches/

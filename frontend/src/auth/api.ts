@@ -1,12 +1,13 @@
 export interface AuthUser {
-  id: number;
+  id: string;
   email: string;
 }
 
 export interface AuthToken {
-  access_token: string;
+  access_token: string | null;
+  refresh_token: string | null;
   token_type: 'bearer';
-  expires_in: number;
+  expires_in: number | null;
   user: AuthUser;
 }
 
@@ -38,6 +39,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message || 'Please check the information and try again.');
   }
 
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -50,7 +52,27 @@ export const authApi = {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   }),
+  refresh: (refreshToken: string) => request<AuthToken>('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  }),
+  logout: (token: string) => request<void>('/auth/logout', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  }),
   me: (token: string) => request<AuthUser>('/auth/me', {
     headers: { Authorization: `Bearer ${token}` },
   }),
+  dashboard: (token: string) => request<{ roadmap: import('../data/roadmap').Roadmap; progress: import('../data/roadmap').Progress }>('/dashboard', {
+    headers: { Authorization: `Bearer ${token}` },
+  }),
+  saveDashboard: (token: string, data: { roadmap: import('../data/roadmap').Roadmap; progress: import('../data/roadmap').Progress }) => request<{ roadmap: import('../data/roadmap').Roadmap; progress: import('../data/roadmap').Progress }>('/dashboard', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
+  }),
 };
+
+export function getAccessToken(): string | null {
+  return localStorage.getItem('myspace.auth.token.v1');
+}

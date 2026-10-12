@@ -1,54 +1,26 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from fastapi.security import HTTPAuthorizationCredentials
 
-from app.api.dependencies import get_current_user
-from app.db.session import get_db
-from app.models.roadmap import Roadmap, RoadmapStage
-from app.models.user import User
-from app.schemas.dashboard import DashboardItem, DashboardResponse, DashboardRoadmap, DashboardStage
+from app.api.dependencies import bearer_scheme, get_current_user
+from app.schemas.auth import UserResponse
+from app.schemas.dashboard import DashboardResponse
+from app.services.dashboard import get_dashboard, save_dashboard as persist_dashboard
 
 router = APIRouter()
 
 
 @router.get("", response_model=DashboardResponse)
-def dashboard_data(
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+async def dashboard_data(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user: UserResponse = Depends(get_current_user),
 ):
-    roadmap = db.scalar(
-        select(Roadmap)
-        .options(selectinload(Roadmap.stages).selectinload(RoadmapStage.items))
-        .where(Roadmap.user_id == user.id)
-        .order_by(Roadmap.id)
-    )
-    if roadmap is None:
-        return DashboardResponse(
-            roadmap=DashboardRoadmap(title="", stages=[]),
-            progress={},
-        )
+    return await get_dashboard(user.id, credentials.credentials)
 
-    progress: dict[str, bool] = {}
-    stages: list[DashboardStage] = []
-    for stage in roadmap.stages:
-        stage_id = stage.client_id or str(stage.id)
-        items: list[DashboardItem] = []
-        for item in stage.items:
-            item_id = item.client_id or str(item.id)
-            progress[item_id] = item.completed
-            items.append(DashboardItem(id=item_id, label=item.label, kind=item.kind))
-        stages.append(
-            DashboardStage(
-                id=stage_id,
-                num=stage.number,
-                title=stage.title,
-                duration=stage.duration,
-                summary=stage.summary,
-                items=items,
-            )
-        )
 
-    return DashboardResponse(
-        roadmap=DashboardRoadmap(title=roadmap.title, stages=stages),
-        progress=progress,
-    )
+@router.put("", response_model=DashboardResponse)
+async def save_dashboard(
+    payload: DashboardResponse,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user: UserResponse = Depends(get_current_user),
+):
+    return await persist_dashboard(user.id, credentials.credentials, payload)

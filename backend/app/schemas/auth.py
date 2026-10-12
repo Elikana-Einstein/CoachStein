@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -11,13 +13,18 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=1)
+
+
 class UserResponse(BaseModel):
-    id: int
+    id: UUID
     email: str
 
 
 class TokenResponse(BaseModel):
-    access_token: str
+    access_token: str | None = None
+    refresh_token: str | None = None
     token_type: str = "bearer"
-    expires_in: int
+    expires_in: int | None = None
     user: UserResponse

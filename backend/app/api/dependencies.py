@@ -1,19 +1,15 @@
-import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.db.session import get_db
-from app.models.user import User
+from app.core.supabase import supabase_request
+from app.schemas.auth import UserResponse
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> User:
+) -> UserResponse:
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Valid bearer token required",
@@ -22,17 +18,15 @@ def get_current_user(
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise unauthorized
     try:
-        payload = jwt.decode(
-            credentials.credentials,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm],
+        payload = await supabase_request(
+            "GET",
+            "/auth/v1/user",
+            access_token=credentials.credentials,
         )
-        subject = payload.get("sub")
-        user_id = int(subject)
-    except (jwt.InvalidTokenError, TypeError, ValueError):
+        return UserResponse(id=payload["id"], email=payload.get("email", ""))
+    except HTTPException as exc:
+        if exc.status_code not in (400, 401, 403):
+            raise
         raise unauthorized from None
-
-    user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    except (KeyError, TypeError, ValueError):
         raise unauthorized
-    return user

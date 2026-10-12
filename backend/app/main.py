@@ -1,24 +1,14 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import settings
-from app.db.init_db import create_database
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    create_database()
-    yield
 
 
 app = FastAPI(
     title="Engineering Roadmap API",
-    description="Roadmaps, milestones, projects, habits, and planning for your engineering workspace.",
+    description="Authenticated API for your MySpace engineering roadmap.",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 app.add_middleware(

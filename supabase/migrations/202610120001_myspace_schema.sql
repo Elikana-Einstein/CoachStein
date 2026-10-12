@@ -1,6 +1,4 @@
--- MySpace schema. Run once in Supabase: SQL Editor -> New query -> paste -> Run.
-
--- 1. Tables ---------------------------------------------------------------
+-- MySpace schema. Managed through Supabase CLI migrations.
 
 create table public.roadmaps (
   user_id    uuid primary key default auth.uid() references auth.users (id) on delete cascade,
@@ -32,7 +30,7 @@ create table public.items (
 
 create index items_stage_idx on public.items (user_id, stage_id);
 
--- Progress is deliberately not tied to items, so ticks survive a re-import.
+-- Progress deliberately has no FK to items so ticks survive a roadmap re-import.
 create table public.progress (
   user_id    uuid not null default auth.uid() references auth.users (id) on delete cascade,
   item_id    text not null,
@@ -40,8 +38,6 @@ create table public.progress (
   updated_at timestamptz not null default now(),
   primary key (user_id, item_id)
 );
-
--- 2. Row Level Security: every user only ever sees their own rows ----------
 
 alter table public.roadmaps enable row level security;
 alter table public.stages   enable row level security;
@@ -56,9 +52,6 @@ create policy "own rows" on public.items for all to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy "own rows" on public.progress for all to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-
--- 3. Save a whole roadmap in one transaction -------------------------------
--- The app sends the full roadmap as JSON; this replaces the user's stages + items.
 
 create or replace function public.save_roadmap(p_title text, p_stages jsonb)
 returns void
@@ -76,9 +69,9 @@ begin
   values (auth.uid(), coalesce(p_title, ''))
   on conflict (user_id) do update set title = excluded.title, updated_at = now();
 
-  delete from public.stages where user_id = auth.uid();  -- items cascade
+  delete from public.stages where user_id = auth.uid();
 
-  for s in select * from jsonb_array_elements(p_stages) loop
+  for s in select * from jsonb_array_elements(coalesce(p_stages, '[]'::jsonb)) loop
     sp := sp + 1;
     insert into public.stages (user_id, id, position, num, title, duration, summary)
     values (
@@ -97,4 +90,4 @@ end;
 $$;
 
 revoke execute on function public.save_roadmap(text, jsonb) from public, anon;
-grant  execute on function public.save_roadmap(text, jsonb) to authenticated;
+grant execute on function public.save_roadmap(text, jsonb) to authenticated;
