@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import { useAuth } from './auth/AuthContext';
 
 type IconName = 'dashboard' | 'calendar' | 'planner' | 'user' | 'menu' | 'close' | 'chevronLeft';
 
@@ -32,7 +34,16 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const visualCollapsed = collapsed && !mobileOpen;
+  const displayName = user?.email.split('@')[0] || 'Engineer';
+  const initials = displayName.slice(0, 2).toUpperCase();
+
+  const handleSignOut = () => {
+    signOut();
+    navigate('/login', { replace: true });
+  };
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -89,8 +100,8 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
         </div>}
 
         <div className={`flex min-w-0 items-center gap-[10px] border-t border-[#283238] px-[7px] py-[11px] ${visualCollapsed ? 'justify-center px-0' : ''}`}>
-          <span className="relative grid size-8 shrink-0 place-items-center rounded-full border border-[#6a8f7b] bg-gradient-to-br from-[#475e52] to-[#33443d] font-[Manrope] text-[10px] font-semibold text-[#e4f2e9]">JD<span className="absolute bottom-0 right-[-1px] size-2 rounded-full border-2 border-[#11171b] bg-[#9be2c5]"/></span>
-          {!visualCollapsed && <><span className="grid min-w-0 flex-1 gap-[3px]"><strong className="truncate text-[10px] font-semibold text-[#d9e1db]">John Doe</strong><small className="text-[8px] text-[#77847e]">Personal workspace</small></span><span aria-hidden="true" className="ml-auto tracking-widest text-[#7f8d88]">···</span></>}
+          <span className="relative grid size-8 shrink-0 place-items-center rounded-full border border-[#6a8f7b] bg-gradient-to-br from-[#475e52] to-[#33443d] font-[Manrope] text-[10px] font-semibold text-[#e4f2e9]">{initials}<span className="absolute bottom-0 right-[-1px] size-2 rounded-full border-2 border-[#11171b] bg-[#9be2c5]"/></span>
+          {!visualCollapsed && <><span className="grid min-w-0 flex-1 gap-[3px]"><strong className="truncate text-[10px] font-semibold text-[#d9e1db]">{displayName}</strong><small className="truncate text-[8px] text-[#77847e]">{user?.email}</small></span><button type="button" onClick={handleSignOut} className="grid size-8 shrink-0 place-items-center rounded-lg text-[#82918a] transition hover:bg-[#252c2d] hover:text-[#e8b2a7]" aria-label="Sign out" title="Sign out"><LogOut size={15} /></button></>}
         </div>
 
         <button className="hidden h-[34px] w-full items-center justify-center gap-[7px] rounded-lg border border-transparent text-[9px] text-[#788782] transition hover:border-[#2b373b] hover:bg-[#1b2429] hover:text-[#c2d0c7] md:flex" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : undefined}>
