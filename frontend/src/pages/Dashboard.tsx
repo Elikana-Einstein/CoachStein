@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   resetProgress,
   summarize,
@@ -75,7 +76,10 @@ export default function Dashboard() {
   const toggleOpen = (id: string) => setOpen((o) => ({ ...o, [id]: !isOpen(id) }));
 
   const resetAll = () => {
-    if (window.confirm("Reset all progress? This can't be undone.")) resetProgress();
+    if (window.confirm("Reset all progress? This can't be undone.")) {
+      resetProgress();
+      toast.success("Roadmap progress reset.");
+    }
   };
 
   /* Empty state: nothing imported yet */
@@ -281,7 +285,7 @@ export default function Dashboard() {
           <span className="mt-4 inline-block text-sm text-[#9be2c5] transition group-hover:translate-x-1">→</span>
         </Link>
         <Link to="/mycoach" className="group rounded-xl border border-[#29343a] bg-[#141b20] p-5 transition hover:border-[#52715e] hover:bg-[#18221f]">
-          <h3 className="text-base font-semibold text-[#dce5df]">Review with MyCoach</h3>
+          <h3 className="text-base font-semibold text-[#dce5df]">Review with My Coach</h3>
           <p className="mt-1 text-xs leading-5 text-[#85918f]">Reflect on what worked and what to change.</p>
           <span className="mt-4 inline-block text-sm text-[#9be2c5] transition group-hover:translate-x-1">→</span>
         </Link>

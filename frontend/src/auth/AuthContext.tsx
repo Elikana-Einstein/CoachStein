@@ -17,6 +17,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function persistSession(accessToken: string, refreshToken: string | null) {
   localStorage.setItem(TOKEN_KEY, accessToken);
   if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  else localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -24,12 +25,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const accessToken = localStorage.getItem(TOKEN_KEY);
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
     let current = true;
 
     async function restoreSession() {
       try {
+        // Supabase returns a confirmed signup session in the URL fragment.
+        const callbackParams = new URLSearchParams(window.location.hash.slice(1));
+        const callbackAccessToken = callbackParams.get('access_token');
+        const callbackRefreshToken = callbackParams.get('refresh_token');
+        if (callbackAccessToken) {
+          window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
+          const callbackUser = await authApi.me(callbackAccessToken);
+          if (!current) return;
+          persistSession(callbackAccessToken, callbackRefreshToken);
+          setUser(callbackUser);
+          return;
+        }
+
+        const accessToken = localStorage.getItem(TOKEN_KEY);
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
         if (accessToken) {
           try {
             const authenticatedUser = await authApi.me(accessToken);
@@ -47,9 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const authenticatedUser = await authApi.me(refreshed.access_token);
         if (current) setUser(authenticatedUser);
       } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-        if (current) setUser(null);
+        if (current) {
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          setUser(null);
+        }
       } finally {
         if (current) setIsLoading(false);
       }

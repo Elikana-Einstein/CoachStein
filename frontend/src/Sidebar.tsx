@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from './auth/AuthContext';
 
-type IconName = 'dashboard' | 'calendar' | 'planner' | 'user' | 'menu' | 'close' | 'chevronLeft';
+type IconName = 'dashboard' | 'calendar' | 'planner' | 'user' | 'ai' | 'menu' | 'close' | 'chevronLeft';
 
 function SidebarIcon({ name, size = 21, strokeWidth = 1.8 }: { name: IconName; size?: number; strokeWidth?: number }) {
   const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const };
@@ -12,6 +13,7 @@ function SidebarIcon({ name, size = 21, strokeWidth = 1.8 }: { name: IconName; s
     case 'calendar':
     case 'planner': return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/>{name === 'planner' && <path d="M8 15h3M8 18h7"/>}</svg>;
     case 'user': return <svg {...common}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+    case 'ai': return <svg {...common}><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.64 5.64l2.12 2.12m8.48 8.48 2.12 2.12m0-12.72-2.12 2.12m-8.48 8.48-2.12 2.12"/><circle cx="12" cy="12" r="4"/><path d="m18.5 3 .5 1.5L20.5 5 19 5.5l-.5 1.5L18 5.5 16.5 5l1.5-.5.5-1.5Z"/></svg>;
     case 'menu': return <svg {...common}><path d="M4 6h16M4 12h16M4 18h16"/></svg>;
     case 'close': return <svg {...common}><path d="m18 6-12 12M6 6l12 12"/></svg>;
     case 'chevronLeft': return <svg {...common}><path d="m15 18-6-6 6-6"/></svg>;
@@ -24,7 +26,8 @@ const navItems: NavItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
   { name: 'Planner', path: '/planner', icon: 'planner' },
   { name: 'Calendar', path: '/calendar', icon: 'calendar' },
-  { name: 'MyCoach', path: '/mycoach', icon: 'user' },
+  { name: 'My Coach', path: '/mycoach', icon: 'user' },
+  { name: 'CoachStein AI', path: '/ai', icon: 'ai' },
 ];
 
 interface SidebarProps {
@@ -42,6 +45,7 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 
   const handleSignOut = () => {
     signOut();
+    toast.success('Signed out.');
     navigate('/login', { replace: true });
   };
 
@@ -71,9 +75,9 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
       className={`fixed inset-y-0 left-0 z-50 flex h-dvh flex-col border-r border-[#263138] bg-gradient-to-b from-[#151b20] to-[#11171b] px-[15px] pb-[13px] pt-[21px] text-[#e5eae6] shadow-[10px_0_35px_rgba(0,0,0,0.08)] transition-[width,transform] duration-300 ease-out ${visualCollapsed ? 'w-[min(82vw,292px)] md:w-[78px]' : 'w-[min(82vw,292px)] md:w-[264px]'} ${mobileOpen ? 'translate-x-0' : '-translate-x-[102%] md:translate-x-0'}`}
       aria-label="Main navigation"
     >
-      <Link to="/dashboard" onClick={() => setMobileOpen(false)} aria-label="MySpace dashboard" className={`flex h-[51px] shrink-0 items-center gap-3 border-b border-[#263138] px-[5px] pb-[17px] text-inherit ${visualCollapsed ? 'justify-center' : ''}`}>
-        <span className="grid size-[34px] shrink-0 place-items-center rounded-[11px] border border-[#5da984] bg-gradient-to-br from-[#9be2c5] to-[#6fc49a] text-[17px] font-extrabold text-[#132019] shadow-[0_5px_14px_rgba(155,226,197,0.13)]">M</span>
-        {!visualCollapsed && <span className="grid gap-[3px] whitespace-nowrap"><strong className="font-[Manrope] text-[15px] font-bold tracking-[-0.35px] text-[#edf2ed]">MySpace</strong><small className="font-mono text-[8px] tracking-[1.15px] text-[#75837d]">PERSONAL WORKSPACE</small></span>}
+      <Link to="/dashboard" onClick={() => setMobileOpen(false)} aria-label="CoachStein dashboard" className={`flex h-[51px] shrink-0 items-center gap-3 border-b border-[#263138] px-[5px] pb-[17px] text-inherit ${visualCollapsed ? 'justify-center' : ''}`}>
+        <span className="grid size-[34px] shrink-0 place-items-center rounded-[11px] border border-[#5da984] bg-gradient-to-br from-[#9be2c5] to-[#6fc49a] text-[17px] font-extrabold text-[#132019] shadow-[0_5px_14px_rgba(155,226,197,0.13)]">C</span>
+        {!visualCollapsed && <span className="grid gap-[3px] whitespace-nowrap"><strong className="font-[Manrope] text-[15px] font-bold tracking-[-0.35px] text-[#edf2ed]">CoachStein</strong><small className="font-mono text-[8px] tracking-[1.15px] text-[#75837d]">ENGINEERING WORKSPACE</small></span>}
       </Link>
 
       <nav className="flex flex-1 flex-col gap-[5px] py-[26px]" aria-label="Workspace">

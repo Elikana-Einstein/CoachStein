@@ -40,3 +40,25 @@ The API docs are at `http://127.0.0.1:8000/docs`; the health check is `/health`.
 | PUT | `/api/v1/dashboard` | Save the current user's roadmap and progress |
 
 The frontend calls FastAPI at `VITE_API_URL` (defaults to `http://127.0.0.1:8000`). Local Supabase Auth has email confirmations disabled in `supabase/config.toml`; hosted projects use their dashboard Auth settings.
+
+## Deploy the API to Render
+
+The repository root contains `render.yaml`, which configures a Python web service using `backend/` as its root, starts Uvicorn on Render's assigned port, and checks `/health`.
+
+1. Push the repository, including `render.yaml`, to GitHub.
+2. In Render, choose **New → Blueprint**, connect this repository, and deploy the `myspace-api` service from `render.yaml`.
+3. When prompted, set `SUPABASE_URL` to the Supabase project URL and `SUPABASE_ANON_KEY` to its publishable/anon key. Do not use or expose the service-role key.
+4. After Render deploys, open `https://<service-name>.onrender.com/health`; it should return `{"status":"ok"}`.
+5. Set `CORS_ORIGINS` in the Render service environment to a JSON array containing the exact frontend origin(s), for example `["https://your-frontend.example"]`. The checked-in `render.yaml` includes the current Vercel deployment origin; replace it if your Vercel domain changes. Include localhost origins only if you still use the local frontend. Save and redeploy.
+6. Set the frontend build environment variable `VITE_API_URL` to `https://<service-name>.onrender.com`, then rebuild/redeploy the frontend.
+
+The API uses each signed-in user's Supabase access token for database requests, so Supabase Row Level Security remains active. Keep secrets in Render's environment settings, never in Git.
+
+## CoachStein AI
+
+The authenticated AI routes use Google's Gemini `generateContent` API with JSON-schema constrained output:
+
+- `POST /api/v1/ai/guidelines` generates a Markdown learning roadmap from a learning goal. The output follows the parser format in `frontend/src/data/roadmap.ts` and can be reviewed/imported in Planner.
+- `POST /api/v1/ai/progress-analysis` analyzes the submitted signed-in user's roadmap snapshot. Completion percentages are calculated by the API; AI provides strengths, focused recommendations, and a weekly action.
+
+Set `GEMINI_API_KEY` in Render's service environment (or `backend/.env` locally). Create the key in Google AI Studio and keep it server-side and private; never put it in the frontend. `GEMINI_MODEL` defaults to `gemini-3.8-flash` and can be changed to a model enabled for your key. Gemini API usage may incur charges or quota limits under your Google AI account.

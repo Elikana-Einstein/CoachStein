@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { authApi, getAccessToken } from './auth/api';
 import { useAuth } from './auth/AuthContext';
 import Sidebar from './Sidebar';
@@ -54,7 +55,11 @@ export default function MainBar() {
 
         if (active) setSyncReady(true);
       } catch (error) {
-        if (active) setSyncError(error instanceof Error ? error.message : 'Could not load your cloud roadmap.');
+        if (active) {
+          const message = error instanceof Error ? error.message : 'Could not load your cloud roadmap.';
+          setSyncError(message);
+          toast.error(`Cloud sync: ${message}`, { id: 'cloud-sync-error' });
+        }
       }
     }
 
@@ -70,8 +75,15 @@ export default function MainBar() {
 
     const timer = window.setTimeout(() => {
       void authApi.saveDashboard(accessToken, { roadmap, progress })
-        .then(() => setSyncError(''))
-        .catch((error: unknown) => setSyncError(error instanceof Error ? error.message : 'Could not save your cloud roadmap.'));
+        .then(() => {
+          setSyncError('');
+          toast.dismiss('cloud-sync-error');
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Could not save your cloud roadmap.';
+          setSyncError(message);
+          toast.error(`Cloud sync: ${message}`, { id: 'cloud-sync-error' });
+        });
     }, 500);
 
     return () => window.clearTimeout(timer);

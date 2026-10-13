@@ -6,8 +6,8 @@ from app.core.config import settings
 
 
 app = FastAPI(
-    title="Engineering Roadmap API",
-    description="Authenticated API for your MySpace engineering roadmap.",
+    title="CoachStein API",
+    description="Authenticated API for your CoachStein engineering roadmap.",
     version="1.0.0",
 )
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, CSSProperties, DragEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   SAMPLE_GUIDELINE,
   appendStages,
@@ -73,6 +74,8 @@ const PLACEHOLDER = `Paste your guideline here, for example:
 /* ---------- Page ---------- */
 
 export default function Planner() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const roadmap = useRoadmap();
   const progress = useProgress();
   const hasRoadmap = roadmap.stages.length > 0;
@@ -85,7 +88,6 @@ export default function Planner() {
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [dragging, setDragging] = useState<boolean>(false);
   const [building, setBuilding] = useState<boolean>(false);
-  const [notice, setNotice] = useState<string>("");
 
   const typerRef = useRef<number | null>(null);
   const buildRef = useRef<number | null>(null);
@@ -110,10 +112,14 @@ export default function Planner() {
   );
 
   useEffect(() => {
-    if (!notice) return;
-    const t = window.setTimeout(() => setNotice(""), 6000);
-    return () => window.clearTimeout(t);
-  }, [notice]);
+    const incomingGuideline = (location.state as { generatedGuideline?: unknown } | null)?.generatedGuideline;
+    if (typeof incomingGuideline !== "string" || !incomingGuideline.trim()) return;
+    setText(incomingGuideline);
+    setName(parseGuideline(incomingGuideline).title ?? "");
+    setOverrides({});
+    setStudioOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   /* Parsing happens live as you type */
   const parsed = useMemo(() => parseGuideline(text), [text]);
@@ -145,7 +151,12 @@ export default function Planner() {
   const readFile = (file: File) => {
     stopTyping();
     setOverrides({});
-    file.text().then(setText).catch(() => setNotice("That file couldn't be read as text."));
+    file.text()
+      .then((contents) => {
+        setText(contents);
+        toast.success("Guideline loaded from file.");
+      })
+      .catch(() => toast.error("That file couldn't be read as text."));
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -171,14 +182,14 @@ export default function Planner() {
       if (hasRoadmap && mode === "add") {
         const added = appendStages(stages);
         const skipped = stages.length - added;
-        setNotice(
+        toast.success(
           skipped === 0
             ? `Added ${added} ${added === 1 ? "stage" : "stages"} to your roadmap.`
             : `Added ${added} new, skipped ${skipped} already in your roadmap.`
         );
       } else {
         replaceRoadmap(name.trim() || parsed.title || "My roadmap", stages);
-        setNotice(`Roadmap built: ${stages.length} stages, ${steps} steps. Progress on unchanged steps was kept.`);
+        toast.success(`Roadmap built: ${stages.length} stages, ${steps} steps. Progress on unchanged steps was kept.`);
       }
       setText("");
       setName("");
@@ -189,13 +200,17 @@ export default function Planner() {
   };
 
   const confirmRemove = (id: string, title: string) => {
-    if (window.confirm(`Remove "${title}" from your roadmap?`)) removeStage(id);
+    if (window.confirm(`Remove "${title}" from your roadmap?`)) {
+      removeStage(id);
+      toast.success(`Removed "${title}" from your roadmap.`);
+    }
   };
 
   const confirmClear = () => {
     if (window.confirm("Delete the whole roadmap? Your ticked steps are kept in case you re-import it.")) {
       clearRoadmap();
       setStudioOpen(true);
+      toast.success("Roadmap cleared. Your completed steps are kept.");
     }
   };
 
@@ -233,16 +248,6 @@ export default function Planner() {
           </div>
         )}
       </div>
-
-      {notice && (
-        <p
-          role="status"
-          className="ms-anim mt-5 rounded-lg border border-[#3d5748] bg-[#20332a] px-4 py-3 text-sm text-[#a8dfbf]"
-          style={rise(0)}
-        >
-          {notice}
-        </p>
-      )}
 
       {/* ---------------- Import studio ---------------- */}
       {showStudio && (
