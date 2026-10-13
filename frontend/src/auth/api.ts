@@ -11,6 +11,14 @@ export interface AuthToken {
   user: AuthUser;
 }
 
+export interface RemoteGuideline {
+  id: string;
+  title: string;
+  stages: import('../data/roadmap').Stage[];
+  progress: import('../data/roadmap').Progress;
+  updated_at: string;
+}
+
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const API_PREFIX = '/api/v1';
 
@@ -70,6 +78,14 @@ export const authApi = {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(data),
+  }),
+  savedGuidelines: (token: string) => request<RemoteGuideline[]>('/dashboard/guidelines', {
+    headers: { Authorization: `Bearer ${token}` },
+  }),
+  saveGuideline: (token: string, guideline: import('../data/roadmap').SavedGuideline) => request<RemoteGuideline>(`/dashboard/guidelines/${encodeURIComponent(guideline.id)}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ title: guideline.title, stages: guideline.stages, progress: guideline.progress }),
   }),
 };
 

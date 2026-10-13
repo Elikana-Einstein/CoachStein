@@ -28,6 +28,12 @@ export interface Roadmap {
 
 export type Progress = Record<string, boolean>;
 
+export interface SavedGuideline extends Roadmap {
+  id: string;
+  progress: Progress;
+  updatedAt: number;
+}
+
 export interface ParsedItem {
   label: string;
   kind: ItemKind;
@@ -99,11 +105,14 @@ function createStore<T>(key: string, fallback: T) {
 
 const roadmapStore = createStore<Roadmap>("myspace.roadmap.v1", { title: "", stages: [] });
 const progressStore = createStore<Progress>("myspace.progress.v1", {});
+const guidelinesStore = createStore<SavedGuideline[]>("coachstein.guidelines.v1", []);
 
 export const useRoadmap = (): Roadmap =>
   useSyncExternalStore(roadmapStore.subscribe, roadmapStore.get);
 export const useProgress = (): Progress =>
   useSyncExternalStore(progressStore.subscribe, progressStore.get);
+export const useGuidelines = (): SavedGuideline[] =>
+  useSyncExternalStore(guidelinesStore.subscribe, guidelinesStore.get);
 
 export const getRoadmapSnapshot = (): Roadmap => roadmapStore.get();
 export const getProgressSnapshot = (): Progress => progressStore.get();
@@ -145,6 +154,45 @@ export function resetProgress(): void {
 
 export function replaceProgress(progress: Progress): void {
   progressStore.set(progress);
+}
+
+function guidelineId(title: string, stages: Stage[]): string {
+  return `gd_${hash(`${title.toLowerCase()}:${stages.map((stage) => stage.id).join(":")}`)}`;
+}
+
+/** Save the active roadmap as a selectable guideline, including its own progress. */
+export function saveCurrentGuideline(): void {
+  const roadmap = roadmapStore.get();
+  if (!roadmap.stages.length) return;
+  const progress = progressStore.get();
+  const id = guidelineId(roadmap.title, roadmap.stages);
+  const current = guidelinesStore.get();
+  const existing = current.find((guideline) => guideline.id === id);
+  if (existing && JSON.stringify(existing.progress) === JSON.stringify(progress)) return;
+
+  const saved: SavedGuideline = {
+    id,
+    title: roadmap.title || "Untitled guideline",
+    stages: roadmap.stages,
+    progress,
+    updatedAt: Date.now(),
+  };
+  guidelinesStore.set([saved, ...current.filter((guideline) => guideline.id !== id)].slice(0, 50));
+}
+
+export function selectGuideline(id: string): boolean {
+  const selected = guidelinesStore.get().find((guideline) => guideline.id === id);
+  if (!selected) return false;
+  roadmapStore.set({ title: selected.title, stages: selected.stages });
+  progressStore.set(selected.progress);
+  return true;
+}
+
+export function replaceGuidelines(guidelines: SavedGuideline[]): void {
+  const normalized = [...guidelines].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 50);
+  if (JSON.stringify(normalized) !== JSON.stringify(guidelinesStore.get())) {
+    guidelinesStore.set(normalized);
+  }
 }
 
 /* ------------------------------------------------------------------ */

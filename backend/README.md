@@ -11,7 +11,7 @@ FastAPI is the application API. Supabase Auth issues user sessions, Postgres sto
 
 If you already ran this schema manually in the SQL Editor, compare the tables, policies, and function with the migration first. If they match, record the existing migration as applied with `supabase migration repair 202610120001 --status applied` before using `supabase db push`; otherwise the CLI will try to create the existing tables again. The CLI uses migration history to decide what to apply. [Migration repair docs](https://supabase.com/docs/reference/cli/supabase-migration-repair)
 
-The checked-in migration creates the roadmap, stages, items, and progress tables, enables per-user row-level security, and installs the `save_roadmap` RPC. The API forwards the signed-in user's Supabase access token on every database request, so Postgres RLS remains active. It does not use a service-role key.
+The checked-in migrations create the active roadmap tables and the `saved_guidelines` table. Each saved guideline stores its stages and independent progress snapshot; row-level security limits it to its owner. The API forwards the signed-in user's Supabase access token on every database request, so Postgres RLS remains active. It does not use a service-role key.
 
 ## Run FastAPI
 
@@ -38,6 +38,8 @@ The API docs are at `http://127.0.0.1:8000/docs`; the health check is `/health`.
 | GET | `/api/v1/auth/me` | Verify the access token and return the user |
 | GET | `/api/v1/dashboard` | Read the current user's roadmap and progress |
 | PUT | `/api/v1/dashboard` | Save the current user's roadmap and progress |
+| GET | `/api/v1/dashboard/guidelines` | List the user's saved guidelines and their progress |
+| PUT | `/api/v1/dashboard/guidelines/{id}` | Create or update one saved guideline |
 
 The frontend calls FastAPI at `VITE_API_URL` (defaults to `http://127.0.0.1:8000`). Local Supabase Auth has email confirmations disabled in `supabase/config.toml`; hosted projects use their dashboard Auth settings.
 
@@ -53,6 +55,8 @@ The repository root contains `render.yaml`, which configures a Python web servic
 6. Set the frontend build environment variable `VITE_API_URL` to `https://<service-name>.onrender.com`, then rebuild/redeploy the frontend.
 
 The API uses each signed-in user's Supabase access token for database requests, so Supabase Row Level Security remains active. Keep secrets in Render's environment settings, never in Git.
+
+Apply new database migrations from the repository root with `supabase db push` after linking the project. The saved-guidelines table is created by `202610130001_saved_guidelines.sql`; it does not remove or rewrite the existing active roadmap tables.
 
 ## CoachStein AI
 

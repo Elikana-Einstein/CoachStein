@@ -1,8 +1,63 @@
 from asyncio import gather
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.core.supabase import supabase_request
-from app.schemas.dashboard import DashboardItem, DashboardResponse, DashboardRoadmap, DashboardStage
+from app.schemas.dashboard import (
+    DashboardItem,
+    DashboardResponse,
+    DashboardRoadmap,
+    DashboardStage,
+    SavedGuidelineResponse,
+    SavedGuidelineWrite,
+)
+
+
+async def list_saved_guidelines(user_id: UUID, access_token: str) -> list[SavedGuidelineResponse]:
+    rows = await supabase_request(
+        "GET",
+        "/rest/v1/saved_guidelines",
+        access_token=access_token,
+        params={
+            "user_id": f"eq.{user_id}",
+            "select": "id,title,stages,progress,updated_at",
+            "order": "updated_at.desc",
+            "limit": "50",
+        },
+    )
+    return [SavedGuidelineResponse.model_validate(row) for row in rows]
+
+
+async def save_guideline(
+    user_id: UUID,
+    access_token: str,
+    guideline_id: str,
+    payload: SavedGuidelineWrite,
+) -> SavedGuidelineResponse:
+    rows = await supabase_request(
+        "POST",
+        "/rest/v1/saved_guidelines",
+        access_token=access_token,
+        params={"on_conflict": "user_id,id"},
+        body={
+            "user_id": str(user_id),
+            "id": guideline_id,
+            "title": payload.title,
+            "stages": [stage.model_dump(mode="json") for stage in payload.stages],
+            "progress": payload.progress,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
+        prefer="resolution=merge-duplicates,return=representation",
+    )
+    if rows:
+        return SavedGuidelineResponse.model_validate(rows[0])
+    saved = await supabase_request(
+        "GET",
+        "/rest/v1/saved_guidelines",
+        access_token=access_token,
+        params={"user_id": f"eq.{user_id}", "id": f"eq.{guideline_id}", "select": "id,title,stages,progress,updated_at", "limit": "1"},
+    )
+    return SavedGuidelineResponse.model_validate(saved[0])
 
 
 async def get_dashboard(user_id: UUID, access_token: str) -> DashboardResponse:

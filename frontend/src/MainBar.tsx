@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authApi, getAccessToken } from './auth/api';
 import { useAuth } from './auth/AuthContext';
 import Sidebar from './Sidebar';
-import { getProgressSnapshot, getRoadmapSnapshot, replaceProgress, replaceRoadmap, useProgress, useRoadmap } from './data/roadmap';
+import { getProgressSnapshot, getRoadmapSnapshot, replaceGuidelines, replaceProgress, replaceRoadmap, useGuidelines, useProgress, useRoadmap } from './data/roadmap';
 
 const LEGACY_IMPORT_KEY = 'myspace.legacy-imported.v1';
 
@@ -13,14 +13,18 @@ export default function MainBar() {
   const [syncReady, setSyncReady] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [retrySync, setRetrySync] = useState(0);
+  const syncedGuidelines = useRef<Record<string, string>>({});
   const { user } = useAuth();
   const roadmap = useRoadmap();
   const progress = useProgress();
+  const guidelines = useGuidelines();
+  const [guidelinesReady, setGuidelinesReady] = useState(false);
 
   useEffect(() => {
     let active = true;
     const token = getAccessToken();
     setSyncReady(false);
+    setGuidelinesReady(false);
     setSyncError('');
 
     if (!token) {
@@ -53,6 +57,28 @@ export default function MainBar() {
           replaceProgress(remote.progress);
         }
 
+        try {
+          const remoteGuidelines = await authApi.savedGuidelines(accessToken);
+          if (!active) return;
+          syncedGuidelines.current = Object.fromEntries(remoteGuidelines.map((guideline) => [
+            guideline.id,
+            JSON.stringify({ title: guideline.title, stages: guideline.stages, progress: guideline.progress }),
+          ]));
+          replaceGuidelines(remoteGuidelines.map((guideline) => ({
+            id: guideline.id,
+            title: guideline.title,
+            stages: guideline.stages,
+            progress: guideline.progress,
+            updatedAt: Date.parse(guideline.updated_at) || Date.now(),
+          })));
+          setGuidelinesReady(true);
+        } catch (error) {
+          if (active) {
+            const message = error instanceof Error ? error.message : 'Could not load your saved guidelines.';
+            toast.error(`Guideline sync: ${message}`, { id: 'guideline-sync-error' });
+          }
+        }
+
         if (active) setSyncReady(true);
       } catch (error) {
         if (active) {
@@ -66,6 +92,29 @@ export default function MainBar() {
     void loadDashboard();
     return () => { active = false; };
   }, [user?.id, retrySync]);
+
+  useEffect(() => {
+    if (!syncReady || !guidelinesReady || guidelines.length === 0) return;
+    const token = getAccessToken();
+    if (!token) return;
+    const accessToken = token;
+    const timer = window.setTimeout(() => {
+      const changed = guidelines.filter((guideline) => {
+        const snapshot = JSON.stringify({ title: guideline.title, stages: guideline.stages, progress: guideline.progress });
+        return syncedGuidelines.current[guideline.id] !== snapshot;
+      });
+      void Promise.all(changed.map(async (guideline) => {
+        await authApi.saveGuideline(accessToken, guideline);
+        syncedGuidelines.current[guideline.id] = JSON.stringify({ title: guideline.title, stages: guideline.stages, progress: guideline.progress });
+      }))
+        .then(() => toast.dismiss('guideline-sync-error'))
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Could not save your guidelines.';
+          toast.error(`Guideline sync: ${message}`, { id: 'guideline-sync-error' });
+        });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [guidelines, guidelinesReady, syncReady]);
 
   useEffect(() => {
     if (!syncReady) return;

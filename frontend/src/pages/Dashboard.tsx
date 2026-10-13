@@ -1,12 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
+import { BookOpen, ChevronDown, X } from "lucide-react";
 import {
   resetProgress,
+  saveCurrentGuideline,
+  selectGuideline,
   summarize,
   toggleItem,
+  useGuidelines,
   useProgress,
   useRoadmap,
+  type Roadmap,
+  type SavedGuideline,
   type ItemKind,
 } from "../data/roadmap";
 
@@ -63,12 +69,54 @@ const NEXT_PREFIX: Record<ItemKind, string> = {
   milestone: "Next check",
 };
 
+function GuidelinesNavbar({ roadmap, guidelines, onSelect }: { roadmap: Roadmap; guidelines: SavedGuideline[]; onSelect: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const active = guidelines.find((guideline) => guideline.title === roadmap.title && guideline.stages.map((stage) => stage.id).join(":") === roadmap.stages.map((stage) => stage.id).join(":"));
+
+  return (
+    <div className="relative z-30 mb-5">
+      <nav aria-label="Dashboard navigation" className="flex min-h-12 items-center justify-between rounded-xl border border-[#29363a] bg-[#12191c] px-3 py-2">
+        <button type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#2e4038] bg-[#18231e] px-3 text-xs font-semibold text-[#bce8cb] transition hover:border-[#52715e] hover:bg-[#1d2b25]">
+          <BookOpen size={15} /> My guidelines <span className="rounded-full bg-[#25372d] px-1.5 py-0.5 font-mono text-[9px] text-[#a8dfbf]">{guidelines.length}</span><ChevronDown size={13} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+        <span className="hidden text-[10px] text-[#6f7d77] sm:block">Choose a saved learning route</span>
+      </nav>
+
+      {open && <>
+        <button type="button" aria-label="Close guidelines menu" onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default bg-black/45" />
+        <section role="dialog" aria-modal="true" aria-labelledby="guidelines-title" className="absolute left-0 top-14 z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#34443e] bg-[#151e20] shadow-[0_24px_70px_rgba(0,0,0,.55)]">
+          <header className="flex items-start justify-between border-b border-[#29363a] px-4 py-3.5">
+            <div><h2 id="guidelines-title" className="text-sm font-semibold text-[#e5ece7]">Your guidelines</h2><p className="mt-1 text-[10px] text-[#819088]">Select one to make it your dashboard route.</p></div>
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="grid size-7 place-items-center rounded-md text-[#819088] hover:bg-white/5 hover:text-[#e5ece7]"><X size={15} /></button>
+          </header>
+          <div className="max-h-[min(55vh,420px)] space-y-1 overflow-y-auto p-2">
+            {guidelines.length ? [...guidelines].sort((a, b) => b.updatedAt - a.updatedAt).map((guideline) => {
+              const stats = summarize(guideline.stages, guideline.progress);
+              const selected = active?.id === guideline.id;
+              return <button key={guideline.id} type="button" onClick={() => { onSelect(guideline.id); setOpen(false); }} className={`block w-full rounded-xl border p-3 text-left transition ${selected ? "border-[#52715e] bg-[#1c2b24]" : "border-transparent hover:border-[#34443e] hover:bg-[#1a2424]"}`}>
+                <span className="flex items-center justify-between gap-3"><span className="truncate text-xs font-semibold text-[#dce5df]">{guideline.title || "Untitled guideline"}</span>{selected && <span className="shrink-0 rounded-full bg-[#294332] px-2 py-0.5 text-[9px] text-[#b5edce]">Active</span>}</span>
+                <span className="mt-1.5 flex items-center justify-between gap-3 text-[10px] text-[#819088]"><span>{guideline.stages.length} stages · {stats.total} steps</span><span>{stats.percent}% complete</span></span>
+                <span className="mt-2 block h-1 overflow-hidden rounded-full bg-[#26312f]"><span className="block h-full rounded-full bg-[#83c5a3]" style={{ width: `${stats.percent}%` }} /></span>
+              </button>;
+            }) : <div className="px-3 py-7 text-center"><BookOpen size={20} className="mx-auto text-[#789b85]" /><p className="mt-3 text-xs font-medium text-[#cbd6ce]">No saved guidelines yet</p><p className="mt-1 text-[10px] leading-5 text-[#819088]">Build a route in Planner and it will be available here.</p><Link onClick={() => setOpen(false)} to="/planner" className="mt-3 inline-block text-[11px] font-medium text-[#9be2c5] hover:text-[#c8efd6]">Open Planner →</Link></div>}
+          </div>
+        </section>
+      </>}
+    </div>
+  );
+}
+
 /* ---------- Dashboard ---------- */
 
 export default function Dashboard() {
   const roadmap = useRoadmap();
   const progress = useProgress();
+  const guidelines = useGuidelines();
   const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    saveCurrentGuideline();
+  }, [roadmap, progress]);
 
   const summary = useMemo(() => summarize(roadmap.stages, progress), [roadmap.stages, progress]);
 
@@ -86,6 +134,7 @@ export default function Dashboard() {
   if (roadmap.stages.length === 0) {
     return (
       <div className="mx-auto max-w-6xl py-4 sm:py-8">
+        <GuidelinesNavbar roadmap={roadmap} guidelines={guidelines} onSelect={(id) => { if (selectGuideline(id)) toast.success("Guideline loaded on your dashboard."); }} />
         <p className="mb-2 text-xs font-medium text-[#91b59f]">Your personal workspace</p>
         <h1 className="text-3xl font-semibold tracking-tight text-[#eef2ed] sm:text-4xl">Welcome back.</h1>
         <section className="mt-8 rounded-2xl border border-dashed border-[#35434a] bg-[#141b20] p-8 text-center sm:p-12">
@@ -106,6 +155,7 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto max-w-6xl py-4 sm:py-8">
+      <GuidelinesNavbar roadmap={roadmap} guidelines={guidelines} onSelect={(id) => { if (selectGuideline(id)) toast.success("Guideline loaded on your dashboard."); }} />
       {/* Header */}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
         <div>

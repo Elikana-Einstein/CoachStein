@@ -9,6 +9,7 @@ import {
   parseGuideline,
   removeStage,
   replaceRoadmap,
+  saveCurrentGuideline,
   summarize,
   toStages,
   useProgress,
@@ -179,6 +180,8 @@ export default function Planner() {
     buildRef.current = window.setTimeout(() => {
       const stages = toStages(included);
       const steps = stages.reduce((n, s) => n + s.items.length, 0);
+      // Preserve the active route and its progress before replacing or extending it.
+      saveCurrentGuideline();
       if (hasRoadmap && mode === "add") {
         const added = appendStages(stages);
         const skipped = stages.length - added;
@@ -191,6 +194,7 @@ export default function Planner() {
         replaceRoadmap(name.trim() || parsed.title || "My roadmap", stages);
         toast.success(`Roadmap built: ${stages.length} stages, ${steps} steps. Progress on unchanged steps was kept.`);
       }
+      saveCurrentGuideline();
       setText("");
       setName("");
       setOverrides({});
