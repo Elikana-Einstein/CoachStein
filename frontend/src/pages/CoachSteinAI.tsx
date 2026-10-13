@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Fragment } from 'react';
 import { ArrowRight, BarChart3, Bot, Check, Clock3, Lightbulb, MessageCircle, RotateCcw, Send, Sparkles, Target, Trophy, WandSparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +10,68 @@ import { analyzeProgress, generateGuideline, sendChat, type CoachChatMessage, ty
 type ToolTab = 'roadmap' | 'progress' | 'chat';
 
 const inputClass = 'mt-2 w-full rounded-xl border border-[#2c3a3e] bg-[#101719] px-4 py-3 text-sm text-[#e6eee8] outline-none transition placeholder:text-[#66766f] hover:border-[#3a5048] focus:border-[#83c5a3] focus:ring-2 focus:ring-[#9be2c5]/10';
+
+function formatLatex(value: string) {
+  return value
+    .replace(/\\underbrace\{([^{}]*)\}_\{\\text\{([^{}]*)\}\}/g, '$1')
+    .replace(/\\text\{([^{}]*)\}/g, '$1')
+    .replace(/\\mathrm\{([^{}]*)\}/g, '$1')
+    .replace(/\\mathbf\{([^{}]*)\}/g, '$1')
+    .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '($1) / ($2)')
+    .replace(/\\int_0\^t/g, '∫₀ᵗ ')
+    .replace(/\\int/g, '∫')
+    .replace(/\\tau/g, 'τ')
+    .replace(/\\cdot/g, '·')
+    .replace(/\\times/g, '×')
+    .replace(/\\,|\\;/g, ' ')
+    .replace(/K_p/g, 'Kₚ').replace(/K_i/g, 'Kᵢ').replace(/K_d/g, 'K_d')
+    .replace(/\\%/g, '%')
+    .replace(/[{}]/g, '')
+    .replace(/\\/g, '')
+    .trim();
+}
+
+function renderInlineMarkdown(text: string, keyPrefix: string) {
+  const pieces = text.split(/(\$[^$]+\$|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*)/g).filter(Boolean);
+  return pieces.map((piece, index) => {
+    const key = `${keyPrefix}-${index}`;
+    if (piece.startsWith('$') && piece.endsWith('$')) return <span key={key} className="mx-0.5 rounded bg-[#1b2924] px-1.5 py-0.5 font-mono text-[.94em] text-[#b8e6c9]">{formatLatex(piece.slice(1, -1))}</span>;
+    if ((piece.startsWith('**') && piece.endsWith('**')) || (piece.startsWith('__') && piece.endsWith('__'))) return <strong key={key} className="font-semibold text-[#e4eee7]">{piece.slice(2, -2)}</strong>;
+    if (piece.startsWith('`') && piece.endsWith('`')) return <code key={key} className="rounded bg-[#202a2a] px-1.5 py-0.5 font-mono text-[.92em] text-[#b5edce]">{piece.slice(1, -1)}</code>;
+    if (piece.startsWith('*') && piece.endsWith('*')) return <em key={key} className="italic text-[#d5e1d8]">{piece.slice(1, -1)}</em>;
+    return <Fragment key={key}>{piece}</Fragment>;
+  });
+}
+
+function ChatMarkdown({ content }: { content: string }) {
+  const blocks = content.split(/(\$\$[\s\S]*?\$\$)/g).filter(Boolean);
+  return <div className="space-y-3">
+    {blocks.map((block, blockIndex) => {
+      if (block.startsWith('$$') && block.endsWith('$$')) return <div key={`math-${blockIndex}`} className="my-4 overflow-x-auto rounded-xl border border-[#33483d] bg-[#14201b] px-4 py-3 text-center font-mono text-xs leading-7 text-[#c4ebd1] sm:text-sm" role="math">{formatLatex(block.slice(2, -2))}</div>;
+      const lines = block.split('\n');
+      return <div key={`text-${blockIndex}`} className="space-y-2">
+        {lines.map((line, lineIndex) => {
+          const key = `${blockIndex}-${lineIndex}`;
+          const trimmed = line.trim();
+          if (!trimmed) return <div key={key} className="h-1" />;
+          const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+          if (heading) {
+            const level = heading[1].length;
+            const className = level === 1 ? 'mt-2 text-base font-semibold text-[#eaf2ec]' : level === 2 ? 'mt-2 text-sm font-semibold text-[#dce8df]' : 'mt-2 text-xs font-semibold text-[#cfe0d4]';
+            return <h4 key={key} className={className}>{renderInlineMarkdown(heading[2], key)}</h4>;
+          }
+          if (/^\s*([-*_]\s*){3,}$/.test(trimmed)) return <hr key={key} className="border-[#33413d]" />;
+          const bullet = trimmed.match(/^[-*•]\s+(.+)$/);
+          if (bullet) return <div key={key} className="flex gap-2 pl-1"><span className="mt-[.55rem] size-1.5 shrink-0 rounded-full bg-[#9be2c5]" /><p className="min-w-0 flex-1">{renderInlineMarkdown(bullet[1], key)}</p></div>;
+          const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+          if (numbered) return <div key={key} className="flex gap-2 pl-1"><span className="font-mono text-[10px] text-[#9be2c5]">{trimmed.match(/^\d+/)?.[0]}.</span><p className="min-w-0 flex-1">{renderInlineMarkdown(numbered[1], key)}</p></div>;
+          if (trimmed.startsWith('>')) return <blockquote key={key} className="border-l-2 border-[#6ba486] pl-3 text-[#9eafa5]">{renderInlineMarkdown(trimmed.replace(/^>\s?/, ''), key)}</blockquote>;
+          return <p key={key}>{renderInlineMarkdown(trimmed, key)}</p>;
+        })}
+      </div>;
+    })}
+  </div>;
+}
 
 function StatCard({ icon: Icon, label, value, detail }: { icon: typeof Target; label: string; value: string; detail: string }) {
   return (
@@ -171,7 +234,7 @@ export default function CoachSteinAI() {
             ) : chatMessages.map((message, index) => (
               <article key={`${index}-${message.role}`} className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${message.role === 'user' ? 'bg-[#26372e] text-[#b5edce]' : 'border border-[#34483c] bg-[#1d2b25] text-[#9be2c5]'}`}>{message.role === 'user' ? <span className="text-[10px] font-semibold">You</span> : <Bot size={15} />}</span>
-                <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-6 sm:max-w-[78%] ${message.role === 'user' ? 'rounded-tr-sm bg-[#21352a] text-[#d5e3d9]' : 'rounded-tl-sm border border-[#29383a] bg-[#101719] text-[#c4d0c8]'}`}><p className="whitespace-pre-wrap break-words">{message.content}</p></div>
+                <div className={`max-w-[90%] rounded-2xl px-4 py-3 text-xs leading-6 sm:max-w-[82%] ${message.role === 'user' ? 'rounded-tr-sm bg-[#21352a] text-[#d5e3d9]' : 'rounded-tl-sm border border-[#29383a] bg-[#101719] text-[#c4d0c8]'}`}>{message.role === 'assistant' ? <ChatMarkdown content={message.content} /> : <p className="whitespace-pre-wrap break-words">{message.content}</p>}</div>
               </article>
             ))}
             {chatting && <div className="flex items-center gap-3"><span className="grid size-8 place-items-center rounded-lg border border-[#34483c] bg-[#1d2b25] text-[#9be2c5]"><Bot size={15} /></span><div className="rounded-2xl rounded-tl-sm border border-[#29383a] bg-[#101719] px-4 py-3"><span className="flex items-center gap-1"><i className="size-1.5 animate-bounce rounded-full bg-[#9be2c5] [animation-delay:-.2s]" /><i className="size-1.5 animate-bounce rounded-full bg-[#9be2c5] [animation-delay:-.1s]" /><i className="size-1.5 animate-bounce rounded-full bg-[#9be2c5]" /><span className="ml-2 text-[10px] text-[#819088]">Thinking…</span></span></div></div>}
